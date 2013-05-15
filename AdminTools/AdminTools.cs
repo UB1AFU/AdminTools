@@ -99,7 +99,7 @@ namespace AdminTools
         {
             NetHooks.GetData += GetData;
             ServerHooks.Leave += OnLeave;
-            ServerHooks.Chat += OnChat;
+            TShockAPI.Hooks.PlayerHooks.PlayerLogin += OnLogin;
             //GameHooks.Update += OnUpdate;
             //NetHooks.SendData += SendData;
           //  Commands.ChatCommands.Add(new Command("permission", CommandMethod, "command"));
@@ -117,7 +117,7 @@ namespace AdminTools
             {
                 NetHooks.GetData -= GetData;
                 ServerHooks.Leave -= OnLeave;
-                ServerHooks.Chat -= OnChat;
+                TShockAPI.Hooks.PlayerHooks.PlayerLogin -= OnLogin;
                 //GameHooks.Update -= OnUpdate;
                 //NetHooks.SendData -= SendData;
             }
@@ -200,38 +200,33 @@ namespace AdminTools
                 Log.ConsoleError(ex.ToString());
             }
         }
-        public void OnChat(messageBuffer buffer, int who, string text, System.ComponentModel.HandledEventArgs args)
-        {
-            if (args.Handled)
-                return;
-            if (text.StartsWith("/login"))
-            {
-                if (text.Length > 7 && TShock.Players[who].UserID != -1)
-                {
-                    var player = GetPlayerByUserID(TShock.Players[who].UserID);
-                    if (player != null)
-                    {
-                        try
-                        {
-                            AdminToolsMain.db.QueryReader("UPDATE PlayerData SET Nicknames=@1, IPs=@2, LastSeen=@3 WHERE UserID=@0", player.UserID, JsonConvert.SerializeObject(player.Nicknames, Formatting.None), JsonConvert.SerializeObject(player.IP, Formatting.None), DateTime.Now.Ticks);
 
-                            lock (PlayerList)
-                            {
-                                PlayerList.Remove(player);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Log.ConsoleError(ex.ToString());
-                        }
+        private void OnLogin(TShockAPI.Hooks.PlayerLoginEventArgs args)
+        {
+            var player = GetPlayerByUserID(args.Player.UserID);
+
+            if (player != null)
+            {
+                try
+                {
+                    AdminToolsMain.db.QueryReader(
+                        "UPDATE PlayerData SET Nicknames=@1, IPs=@2, LastSeen=@3 WHERE UserID=@0", player.UserID,
+                        JsonConvert.SerializeObject(player.Nicknames, Formatting.None),
+                        JsonConvert.SerializeObject(player.IP, Formatting.None), DateTime.Now.Ticks);
+
+                    lock (PlayerList)
+                    {
+                        PlayerList.Remove(player);
                     }
-                    LoginThread lt = new LoginThread(who);
-                    Thread t = new Thread(new ThreadStart(lt.CheckLogin));
-                    t.Start();
+                }
+                catch (Exception ex)
+                {
+                    Log.ConsoleError(ex.ToString());
                 }
             }
-        }
 
+            new Thread(new ThreadStart(new LoginThread(args.Player.TPlayer.whoAmi).CheckLogin)).Start();
+        }
 
         #region Getdata
         public static void GetData(GetDataEventArgs e)
