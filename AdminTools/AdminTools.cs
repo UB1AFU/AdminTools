@@ -6,8 +6,9 @@ using System.Text;
 using System.Data;
 using System.ComponentModel;
 using Terraria;
-using Hooks;
+using TerrariaApi.Server;
 using TShockAPI;
+using TShockAPI.Hooks;
 using TShockAPI.DB;
 using Mono.Data.Sqlite;
 using MySql.Data.MySqlClient;
@@ -63,7 +64,7 @@ namespace AdminTools
             }
         }
     }
-    [APIVersion(1, 12)]
+    [ApiVersion(1, 15)]
     public class AdminToolsMain : TerrariaPlugin
     {
         public static IDbConnection db;
@@ -88,7 +89,7 @@ namespace AdminTools
         }
         public override Version Version
         {
-            get { return new Version("0.1"); }
+            get { return new Version(0, 1, 1); }
         }
         public AdminToolsMain(Main game)
             : base(game)
@@ -97,9 +98,9 @@ namespace AdminTools
         }
         public override void Initialize()
         {
-            NetHooks.GetData += GetData;
-            ServerHooks.Leave += OnLeave;
-            TShockAPI.Hooks.PlayerHooks.PlayerLogin += OnLogin;
+            ServerApi.Hooks.NetGetData.Register(this, GetData);
+            ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
+            PlayerHooks.PlayerPostLogin += OnLogin;
             //GameHooks.Update += OnUpdate;
             //NetHooks.SendData += SendData;
           //  Commands.ChatCommands.Add(new Command("permission", CommandMethod, "command"));
@@ -115,9 +116,9 @@ namespace AdminTools
         {
             if (disposing)
             {
-                NetHooks.GetData -= GetData;
-                ServerHooks.Leave -= OnLeave;
-                TShockAPI.Hooks.PlayerHooks.PlayerLogin -= OnLogin;
+                ServerApi.Hooks.NetGetData.Deregister(this, GetData);
+                ServerApi.Hooks.ServerLeave.Deregister(this, OnLeave);
+                PlayerHooks.PlayerPostLogin -= OnLogin;
                 //GameHooks.Update -= OnUpdate;
                 //NetHooks.SendData -= SendData;
             }
@@ -178,11 +179,11 @@ namespace AdminTools
             SQLcreator.EnsureExists(table);
 
         }
-        private static void OnLeave(int who)
+        private static void OnLeave(LeaveEventArgs plr)
         {
             try
             {
-                var player = GetPlayerByIndex(who);
+                var player = GetPlayerByIndex(plr.Who);
                 if (player != null)
                 {
                     if (player.UserID != -1)
@@ -201,7 +202,7 @@ namespace AdminTools
             }
         }
 
-        private void OnLogin(TShockAPI.Hooks.PlayerLoginEventArgs args)
+        private void OnLogin(PlayerPostLoginEventArgs args)
         {
             var player = GetPlayerByUserID(args.Player.UserID);
 
