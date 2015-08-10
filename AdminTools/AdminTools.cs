@@ -1,19 +1,18 @@
-﻿using System;
+﻿using Mono.Data.Sqlite;
+using MySql.Data.MySqlClient;
+using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.IO;
-using System.Text;
 using System.Data;
-using System.ComponentModel;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading;
 using Terraria;
 using TerrariaApi.Server;
 using TShockAPI;
-using TShockAPI.Hooks;
 using TShockAPI.DB;
-using Mono.Data.Sqlite;
-using MySql.Data.MySqlClient;
-using Newtonsoft.Json;
-using System.Threading;
+using TShockAPI.Hooks;
 
 namespace AdminTools
 {
@@ -64,7 +63,7 @@ namespace AdminTools
             }
         }
     }
-    [ApiVersion(1, 15)]
+    [ApiVersion(1, 21)]
     public class AdminToolsMain : TerrariaPlugin
     {
         public static IDbConnection db;
@@ -148,7 +147,7 @@ namespace AdminTools
                 }
                 catch (MySqlException ex)
                 {
-                    Log.Error(ex.ToString());
+                    TShock.Log.Error(ex.ToString());
                     throw new Exception("MySql not setup correctly");
                 }
             }
@@ -168,7 +167,7 @@ namespace AdminTools
                 new SqlColumn("Time", MySql.Data.MySqlClient.MySqlDbType.Int32),
                 new SqlColumn("WorldID", MySql.Data.MySqlClient.MySqlDbType.Int32)
             );
-            SQLcreator.EnsureExists(table);
+            SQLcreator.EnsureTableStructure(table);
             table = new SqlTable("PlayerData",
                 new SqlColumn("UserID", MySql.Data.MySqlClient.MySqlDbType.Int32) { Primary = true, Unique = true, NotNull = true },
                 new SqlColumn("Username", MySql.Data.MySqlClient.MySqlDbType.VarChar) { Length = 30 },
@@ -176,7 +175,7 @@ namespace AdminTools
                 new SqlColumn("IPs", MySql.Data.MySqlClient.MySqlDbType.Text),
                 new SqlColumn("LastSeen", MySql.Data.MySqlClient.MySqlDbType.Int32)
             );
-            SQLcreator.EnsureExists(table);
+            SQLcreator.EnsureTableStructure(table);
 
         }
         private static void OnLeave(LeaveEventArgs plr)
@@ -198,13 +197,13 @@ namespace AdminTools
             }
             catch (Exception ex)
             {
-                Log.ConsoleError(ex.ToString());
+                TShock.Log.ConsoleError(ex.ToString());
             }
         }
 
         private void OnLogin(PlayerPostLoginEventArgs args)
         {
-            var player = GetPlayerByUserID(args.Player.UserID);
+            var player = GetPlayerByUserID(args.Player.User.ID);
 
             if (player != null)
             {
@@ -222,11 +221,11 @@ namespace AdminTools
                 }
                 catch (Exception ex)
                 {
-                    Log.ConsoleError(ex.ToString());
+                    TShock.Log.ConsoleError(ex.ToString());
                 }
             }
 
-            new Thread(new ThreadStart(new LoginThread(args.Player.TPlayer.whoAmi).CheckLogin)).Start();
+            new Thread(new ThreadStart(new LoginThread(args.Player.TPlayer.whoAmI).CheckLogin)).Start();
         }
 
         #region Getdata
@@ -335,7 +334,7 @@ namespace AdminTools
                                     }
                                 }
                                 catch (Exception ex)
-                                { Log.ConsoleError(ex.ToString()); }
+                                { TShock.Log.ConsoleError(ex.ToString()); }
                             }
                             break;
                         }
@@ -392,7 +391,7 @@ namespace AdminTools
                                 TSPlayer tsplayer = TShock.Players[plyID];
                                 if (tsplayer == null)
                                     break;
-                                ATPlayer player = GetPlayerByUserID(tsplayer.UserID);
+                                ATPlayer player = GetPlayerByUserID(tsplayer.User.ID);
                                 if (player == null)
                                     break;
                                 // Console.WriteLine("Flags: {0}", flags);
@@ -408,7 +407,7 @@ namespace AdminTools
                                     }
                                     catch (Exception ex)
                                     {
-                                        Log.ConsoleError(ex.ToString());
+                                        TShock.Log.ConsoleError(ex.ToString());
                                     }
                                     //Console.WriteLine("Player {0} used item: {1}", player.TSPlayer.Name, Main.player[plyID].inventory[item].name);
                                 }
@@ -672,7 +671,7 @@ namespace AdminTools
 
         private static void BindToolCMD(CommandArgs args)
         {
-            var player = GetPlayerByUserID(args.Player.UserID);
+            var player = GetPlayerByUserID(args.Player.User.ID);
             if (player == null)
                 return;
             if (args.Parameters.Count > 0)
@@ -764,9 +763,9 @@ namespace AdminTools
             {
                 TSPlayer player = TShock.Players[this.Index];
                 //if (RolePlay.debugInfo) Console.WriteLine("--- > UserID: {0}", this.RPlayer.TSPlayer.UserID);                  
-                if (player != null && player.UserID != -1)
+                if (player != null && player.User.ID != -1)
                 {
-                    QueryResult reader = AdminToolsMain.db.QueryReader("SELECT * from PlayerData WHERE UserID=@0", player.UserID);
+                    QueryResult reader = AdminToolsMain.db.QueryReader("SELECT * from PlayerData WHERE UserID=@0", player.User.ID);
                     List<String> IP;
                     List<String> Nicknames;
                     if (reader.Read())
@@ -780,16 +779,16 @@ namespace AdminTools
                         IP = new List<string>();
                         Nicknames = new List<string>();
                         IP.Add(player.IP);
-                        if (player.UserAccountName != player.Name)
+                        if (player.User.Name != player.Name)
                             Nicknames.Add(player.Name);
-                        AdminToolsMain.db.QueryReader("INSERT INTO PlayerData (UserID, Username, Nicknames, IPs, LastSeen) VALUES (@0, @1, @2, @3, @4)", player.UserID, player.UserAccountName, JsonConvert.SerializeObject(Nicknames, Formatting.None), JsonConvert.SerializeObject(IP, Formatting.None), DateTime.Now.Ticks);
+                        AdminToolsMain.db.QueryReader("INSERT INTO PlayerData (UserID, Username, Nicknames, IPs, LastSeen) VALUES (@0, @1, @2, @3, @4)", player.User.ID, player.User.Name, JsonConvert.SerializeObject(Nicknames, Formatting.None), JsonConvert.SerializeObject(IP, Formatting.None), DateTime.Now.Ticks);
                     }
                     reader.Dispose();
                     if (!IP.Contains(player.IP))
                     {
                         IP.Add(player.IP);
                     }
-                    else if (player.UserAccountName != player.Name && !Nicknames.Contains(player.Name))
+                    else if (player.User.Name != player.Name && !Nicknames.Contains(player.Name))
                     {
                         Nicknames.Add(player.Name);
                     }
@@ -798,8 +797,8 @@ namespace AdminTools
                     {
                         lock (AdminToolsMain.PlayerList)
                         {
-                            atplayer.UserID = player.UserID;
-                            atplayer.AccountName = player.UserAccountName;
+                            atplayer.UserID = player.User.ID;
+                            atplayer.AccountName = player.User.Name;
                             atplayer.Nicknames = Nicknames;
                             atplayer.IP = IP;
                             atplayer.Online = true;
@@ -810,7 +809,7 @@ namespace AdminTools
             }
             catch (Exception e)
             {
-                Log.ConsoleError(e.Message);
+                TShock.Log.ConsoleError(e.Message);
             }
         }
     }

@@ -2,8 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using TShockAPI;
 using Terraria;
+using TShockAPI;
+
 namespace AdminTools
 {
     public class BindTool
@@ -38,7 +39,7 @@ namespace AdminTools
                     }
                 }
             }
-            catch (Exception ex) { Log.ConsoleError(ex.ToString()); }
+            catch (Exception ex) { TShock.Log.ConsoleError(ex.ToString()); }
         }
     }  
 }
